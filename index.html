@@ -1,0 +1,116 @@
+<!DOCTYPE HTML>
+<html>
+<head>
+  <title>LedColors</title>
+  <script src="js/jquery-3.1.1.min.js"></script>
+  <script src="js/jscolor.min.js"></script>
+
+</head>
+<body>
+  <input id="jsc" class="jscolor {onFineChange:'update(this)'}" onmousedown="lockUpdates()" onmouseup="unlockUpdates()">
+  <label><input id="fadebox" type='checkbox' onclick='handleClick(this);'>Do Fade</label>
+  <!--<button type="button" onclick='handleBlackout(this);'>Blackout</button>-->
+  <input id="jsc2" class="jscolor {onFineChange:'update2(this)'}" style="display: none;">
+
+  <script>
+    function update(jscolor) {
+        // $.post("ledcolor.php", hexToRgb(jscolor.toString()));
+	var rgb = hexToRgb(jscolor.toString());
+        socket.send(rgb['r'].toString()+","+rgb['g'].toString()+","+rgb['b'].toString());
+    }
+    function update2(jscolor) {
+	var rgb1 = hexToRgb(document.getElementById("jsc").jscolor.toString());
+	var rgb2 = hexToRgb(jscolor.toString());
+	socket.send(rgb1['r'].toString()+","+rgb1['g'].toString()+","+rgb1['b'].toString()+","+rgb2['r'].toString()+","+rgb2['g'].toString()+","+rgb2['b'].toString());
+    }
+
+    function handleClick(cb) {
+      if(cb.checked){
+        modesocket.send("fade");
+        $(" #jsc2 ").css("display", "block");
+      } else {
+        modesocket.send("const");
+        $(" #jsc2 ").css("display", "none");
+      }
+    }
+
+    function handleBlackout(button) {
+	var jsc = document.getElementById("jsc");
+        var jsc2 = document.getElementById("jsc2");	
+	jsc.jscolor.fromRGB(0,0,0);
+	jsc2.jscolor.fromRGB(0,0,0);
+        var rgb1 = hexToRgb(jsc.jscolor.toString());
+	var rgb2 = hexToRgb(jsc2.jscolor.toString());
+	socket.send(rgb1['r'].toString()+","+rgb1['g'].toString()+","+rgb1['b'].toString()+","+rgb2['r'].toString()+","+rgb2['g'].toString()+","+rgb2['b'].toString());
+	//update2(document.getElementById("jsc2").jscolor);
+	modesocket.send("const");
+    }
+  </script>
+  <script>
+    var locked = false;
+    var uuid = guid();
+    var host = "alarmpi";
+    var socket = new WebSocket("ws://" +host+ ":8765/set");
+    socket.onopen = function send(ws){socket.send(uuid);};
+    var values;
+
+    var modesocket = new WebSocket("ws://" +host+ ":8765/modeset")
+
+
+    function setValues(e){
+      values = JSON.parse(e.data);
+      if(!locked){
+        //console.log(rgbToHex(values.color[0], values.color[1], values.color[2]));
+
+        document.getElementById("jsc").jscolor.fromString(rgbToHex(values.color[0], values.color[1], values.color[2]));
+      }
+      //console.log(values.mode);
+      $("#fadebox").prop('checked', values.mode == 1);
+
+    }
+
+    function lockUpdates(){
+      locked = true;
+    }
+
+    function unlockUpdates(){
+      locked = false;
+    }
+
+    function guid() {
+      function s4() {
+        return Math.floor((1 + Math.random()) * 0x10000)
+          .toString(16)
+          .substring(1);
+      }
+      return s4() + s4() + '-' + s4() + '-' + s4() + '-' +
+        s4() + '-' + s4() + s4() + s4();
+    }
+
+
+    function rgbToHex(r, g, b) {
+      return "#" + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+    }
+
+    function hexToRgb(hex) {
+      // Expand shorthand form (e.g. "03F") to full form (e.g. "0033FF")
+      var shorthandRegex = /^#?([a-f\d])([a-f\d])([a-f\d])$/i;
+      hex = hex.replace(shorthandRegex, function(m, r, g, b) {
+          return r + r + g + g + b + b;
+      });
+
+      var result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+      return result ? {
+          r: parseInt(result[1], 16),
+          g: parseInt(result[2], 16),
+          b: parseInt(result[3], 16)
+      } : null;
+    }
+
+    var getSocket = new WebSocket("ws://"+host+":8765/get");
+    getSocket.onopen = function sendd(ws) { getSocket.send(uuid); };
+    getSocket.onmessage = setValues;
+
+  </script>
+</body>
+</html>
